@@ -5,8 +5,19 @@ const ctx = myCanvas.getContext("2d");
 myCanvas.width = 800;
 myCanvas.height = 500;
 
+// Scale the fixed-size stage (canvas + menus) to fill the whole window
+const stage = document.getElementById("stage");
+function fitStage() {
+  const scaleX = window.innerWidth / myCanvas.width;
+  const scaleY = window.innerHeight / myCanvas.height;
+  stage.style.transform = `scale(${scaleX}, ${scaleY})`;
+}
+addEventListener("resize", fitStage);
+fitStage();
+
 // Configs
 const gravity = 1;
+const footSink = 5;
 let speedObj = 1.25;
 let onRand = true;
 let gameAsStarted = false;
@@ -185,7 +196,8 @@ class Player {
       this.currentCropWidth,
       32,
       this.position.x,
-      this.position.y,
+      // Draw slightly lower so the feet sit in the grass, not on its tips
+      this.position.y + footSink,
       this.width,
       this.height
     );
@@ -259,7 +271,7 @@ class Game {
 
 // can pass in arguments image
 class Platform {
-  constructor(x, y, width, height, image, color) {
+  constructor(x, y, width, height, image, color, radius = 0) {
     this.position = {
       x: x,
       y: y,
@@ -268,12 +280,24 @@ class Platform {
     this.height = height;
     this.image = image;
     this.color = color;
+    this.radius = radius;
 
     this.pattern = ctx.createPattern(grass1, "repeat");
   }
   update() {
     ctx.fillStyle = "transparent"; /* this.pattern; */
     ctx.fillRect(this.position.x, this.position.y, this.width, this.height);
+    // Clip to a rounded rectangle so the grass tile has round corners
+    ctx.save();
+    ctx.beginPath();
+    ctx.roundRect(
+      this.position.x,
+      this.position.y,
+      this.width,
+      this.height,
+      this.radius
+    );
+    ctx.clip();
     ctx.drawImage(
       this.image,
       this.position.x,
@@ -281,6 +305,7 @@ class Platform {
       this.width,
       this.height
     );
+    ctx.restore();
   }
 }
 
@@ -529,7 +554,15 @@ function randomObjects(n) {
       let randomY = Math.floor(Math.random() * 200 + 160);
       let randomWidth = Math.floor(Math.random() * 100 + 150);
       currentGame.currentPlatforms.push(
-        new Platform(myCanvas.width, randomY, randomWidth, 50, smallplatform)
+        new Platform(
+          myCanvas.width,
+          randomY,
+          randomWidth,
+          50,
+          smallplatform,
+          undefined,
+          25
+        )
       );
       let imageIndexRandom = Math.floor(Math.random() * arrFruit.length);
 
@@ -685,6 +718,9 @@ function collisionsAndUpdate() {
         currentGame.currentPlayer.currentSprite =
           currentGame.currentPlayer.sprites.run.image;
         currentGame.currentPlayer.velocity.y = 0;
+        // Snap the feet onto the platform so there is no gap after landing
+        currentGame.currentPlayer.position.y =
+          elem.position.y - currentGame.currentPlayer.height;
         currentGame.currentPlayer.currentSprite =
           currentGame.currentPlayer.sprites.run.image;
         currentGame.currentPlayer.currentCropWidth =
